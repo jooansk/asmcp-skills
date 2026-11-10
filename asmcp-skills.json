@@ -1,0 +1,8 @@
+{
+  "format": 1,
+  "name": "ASMCP skills (test)",
+  "groups": [
+    { "id": "tests", "label": "Skill source tests", "tip": "Samples that test ASMCP's skill sources" },
+    { "id": "conveyors", "label": "Conveyors", "tip": "Belt conveyors in an OMC machine" }
+  ]
+}
