@@ -1,0 +1,11 @@
+# Automation Studio 6 project: copy into the project folder (where the .apj is) as .gitattributes.
+
+# Keep every file byte for byte as Automation Studio writes it (CRLF, no BOM): no line-ending conversion
+# on any PC or build server.
+* -text
+
+# Ladder and FBD diagrams: no line-by-line automatic merge. The file holds generated code and a checksum, so a text
+# edit breaks the build (errors 1112 / 1113, as_guide 'ladder'). A conflict keeps one side, and the agent redoes the
+# other side's change with write_ladder / write_fbd.
+*.ld merge=binary
+*.fbd merge=binary

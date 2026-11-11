@@ -1,0 +1,11 @@
+
+VAR CONSTANT
+	TCPDEV_ERR_TIMEOUT : UINT := 50000; (*No answer line within AnswerTimeout; the connection stays*)
+	TCPDEV_ERR_OVERFLOW : UINT := 50001; (*A line longer than the receive buffer (1024 bytes): the bytes were dropped*)
+	TCPDEV_ERR_CLOSED : UINT := 50002; (*The device closed the connection*)
+	TCPDEV_ERR_NOT_CONNECTED : UINT := 50003; (*Send while the connection was not up*)
+	TCPDEV_ANSWER_TIMEOUT : TIME := T#5s; (*Answer timeout when the input is T#0s*)
+	TCPDEV_RETRY_DELAY : TIME := T#3s; (*Retry delay when the input is T#0s*)
+	TCPDEV_LF : USINT := 10; (*Line feed: the default end of a line*)
+	TCPDEV_CR : USINT := 13; (*Carriage return: removed before the end of a line*)
+END_VAR

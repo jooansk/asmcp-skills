@@ -1,0 +1,47 @@
+
+FUNCTION_BLOCK TcpDeviceClient (*Keeps a TCP connection to a device that speaks text lines: requests with answers, and lines the device sends by itself*)
+	VAR_INPUT
+		Enable : BOOL; (*TRUE: connect and keep the connection (reconnects after RetryDelay); FALSE: close it*)
+		ServerAddress : STRING[80]; (*IP address or host name of the device*)
+		ServerPort : UINT; (*TCP port of the device*)
+		Send : BOOL; (*Rising edge: sends Request, Done when the next line arrives*)
+		Request : STRING[255]; (*Text to send, with the end characters the device expects (e.g. 'TRIGGER$R$L')*)
+		EndChar : USINT; (*Last byte of a line from the device; 0 = LF (10). A CR right before it is removed*)
+		AnswerTimeout : TIME; (*Max. wait for the answer line after Send; T#0s = TCPDEV_ANSWER_TIMEOUT*)
+		RetryDelay : TIME; (*Pause before the next connection attempt; T#0s = TCPDEV_RETRY_DELAY*)
+	END_VAR
+	VAR_OUTPUT
+		Connected : BOOL; (*The connection is up*)
+		Busy : BOOL; (*A request waits for its answer*)
+		Done : BOOL; (*The answer line is in Answer; reset when Send is FALSE*)
+		Error : BOOL; (*The request failed (StatusID says why); reset when Send is FALSE*)
+		StatusID : UINT; (*Cause of the last failure: an AsTCP status or a TCPDEV_ERR_ constant; 0 = none yet*)
+		Answer : STRING[255]; (*The last complete line from the device, without its end characters*)
+		NewLine : BOOL; (*TRUE for one call when one or more lines arrived (answer or unsolicited)*)
+		LineCount : UDINT; (*Lines received since the start*)
+		SocketIdent : UDINT; (*The open socket (0 = none): the program's _EXIT closes it*)
+		State : TcpDevStateEnum; (*Step of the connection*)
+	END_VAR
+	VAR
+		OpenSocket : TcpOpen; (*Creates the client socket*)
+		ConnectToDevice : TcpClient; (*Connects the socket to the device*)
+		SendRequest : TcpSend; (*Sends SendText*)
+		ReceiveData : TcpRecv; (*Reads what arrived into RxBuffer*)
+		CloseSocket : TcpClose; (*Frees the socket*)
+		AnswerTimer : TON; (*Time since the request was sent*)
+		RetryTimer : TON; (*Pause before reconnecting*)
+		DetectSend : R_TRIG; (*Rising edge of Send*)
+		SendText : STRING[255]; (*Copy of Request: unchanged while TcpSend works on it*)
+		SendPending : BOOL; (*A request waits to be sent*)
+		WaitAnswer : BOOL; (*The request was sent; the next line is its answer*)
+		RxBuffer : ARRAY[0..1023] OF USINT; (*Bytes received, not yet a complete line*)
+		RxLength : UDINT; (*[byte] Valid bytes in RxBuffer*)
+		ScanIdx : UDINT; (*Byte looked at while cutting lines*)
+		LineStart : UDINT; (*First byte of the line being cut*)
+		LineLength : UDINT; (*[byte] Length of the line without its end characters*)
+		PrevByte : USINT; (*The byte before the one looked at (a CR before the end of a line is removed)*)
+		LineEndChar : USINT; (*EndChar, or LF when EndChar is 0*)
+		UsedAnswerTimeout : TIME; (*AnswerTimeout, or the default*)
+		UsedRetryDelay : TIME; (*RetryDelay, or the default*)
+	END_VAR
+END_FUNCTION_BLOCK

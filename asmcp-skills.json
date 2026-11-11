@@ -1,8 +1,11 @@
 {
   "format": 1,
-  "name": "ASMCP skills (test)",
+  "name": "ASMCP skills (samples)",
   "groups": [
     { "id": "tests", "label": "Skill source tests", "tip": "Samples that test ASMCP's skill sources" },
-    { "id": "conveyors", "label": "Conveyors", "tip": "Belt conveyors in an OMC machine" }
+    { "id": "stations", "label": "Machine stations", "tip": "Station recipes for OMC machines: devices, homing, manual, automatic, ARsim test" },
+    { "id": "modules", "label": "Code modules", "tip": "Ready IEC code (libraries, programs) with the steps to bring it into a project" },
+    { "id": "engineering", "label": "Engineering practice", "tip": "Testing, version control and the team's way of working" },
+    { "id": "company", "label": "Company templates", "tip": "Templates for a company's own skills, kept in a private source" }
   ]
 }
