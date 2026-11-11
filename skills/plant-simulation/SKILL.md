@@ -3,9 +3,9 @@ name: plant-simulation
 description: "Sample skill: testing a machine on ARsim without hardware - the least simulation that makes each station answer (DevLib's Simulate parameters, a station's plant action, a plant program for parts between stations and for processes), one switch that keeps it off the real machine, ST patterns for cylinders, a belt with a part, neighbour stations, a tank and a temperature, and a test round that drives the operator panel and injects faults. Use when a machine or station must be tested on ARsim, or a neighbour machine is missing."
 metadata:
   group: engineering
-  version: "0.1.0"
+  version: "0.2.0"
   min-asmcp: "1.44.0"
-  requires-tools: "add_station, add_program, write_variable, watch_variables, read_variables, assign_task"
+  requires-tools: "add_station, add_program, add_file, edit_file, read_ladder, write_ladder, write_variable, watch_variables, read_variables, assign_task"
 ---
 # Plant simulation for ARsim tests (sample)
 
@@ -13,8 +13,18 @@ A station shows its steps, timeouts and alarms only when its sensors answer its 
 by itself: the plant simulation plays the machine - the cylinders, the parts, the neighbours, the process - so the
 real program runs unchanged. Write as little of it as the test needs.
 
-**Status of this sample (0.1.0):** the five patterns of section 3 compile as printed, together in one program with
-DevLib's types (2026-11-11, AS 6.7, a scratch project). The I/O point in section 2 is not measured.
+**Status of this sample (0.2.0):** the five patterns of section 3 compile as printed (2026-11-11, AS 6.7). The
+neighbour pattern ran on ARsim as a plant action of the pick-and-place sample, switched by `gPlantSim` (section 2):
+the station cycled by itself, one part every 6.6 s, without an alarm. The I/O point in section 2 is not measured
+(the test project had no I/O modules).
+
+**A plant action in an existing station** (as it was done in that test):
+1. `add_file` parent = the station's program, name `SimPlant.st`, content `ACTION SimPlant: ... END_ACTION` with
+   the pattern.
+2. Its timers and settings into the station's `Variables.var` (`edit_file`), e.g. `OfferNextPart : TON;` and
+   `SimFeedDelay : TIME := T#3s;` with their descriptions; `gPlantSim` into Logical/Global.var.
+3. `write_ladder` `at` = the first command rung (read_ladder shows it), one rung: `"when": "gPlantSim"`,
+   `"out": ["CALL SimPlant"]`. Build; the build answer lists SimPlant.st under `compiledWithProgram`.
 
 ## 1. The least simulation that works
 

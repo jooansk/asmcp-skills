@@ -3,9 +3,9 @@ name: pick-and-place
 description: "Sample skill: a pick-and-place station in an OMC machine - a gripper lift, a slide (pneumatic, or a servo axis on a gantry) and a vacuum gripper that move parts from an infeed to the next station: the devices, the three parts (homing that clears the gripper, manual control of each device with interlocks, the automatic cycle with handshakes on both sides), the part kept in the gripper across mode changes, the add_device and add_station calls, the ARsim test. Use when a machine lifts parts from one place and sets them down at another."
 metadata:
   group: stations
-  version: "0.1.0"
+  version: "0.2.0"
   min-asmcp: "1.44.0"
-  requires-tools: "add_device, add_station, add_page, add_faceplate, write_variable, watch_variables"
+  requires-tools: "add_object, add_device, add_station, add_page, add_faceplate, write_variable, watch_variables"
 ---
 # Pick-and-place station (sample)
 
@@ -13,8 +13,9 @@ A vacuum gripper on a lift takes a part at the pick position (the infeed's stop)
 position (the next station), the lift sets it down. Build it like every OMC station (as_guide 'omc', 'devices'):
 design the three parts with the user before any code, using the questions in [checklist.md](checklist.md).
 
-**Status of this sample (0.1.0):** the add_device and add_station calls below were run as printed and build with 0
-errors (2026-11-11, AS 6.7, a scratch project: 53 rungs). Not yet run on ARsim.
+**Status of this sample (0.2.0):** the calls below were run as printed (2026-11-11, AS 6.7, AR 6.8.1 ARsim, a 100 ms
+task class): 0 errors, and all eight rows of the ARsim test passed. The test found a bug in 0.1.0, fixed here (see
+"Never reset a held state with the last homing step"). Not yet used on a real machine.
 
 ## The devices
 
@@ -24,6 +25,8 @@ errors (2026-11-11, AS 6.7, a scratch project: 53 rungs). Not yet run on ARsim.
 | `PickX` slide | valve (or axis, below) | place side | pick side and place side | moves only with the gripper up |
 | `PickVacuum` suction cup | vacuum | suction on | vacuum switch | - |
 
+First the machine-function package (add_device makes its program, but not the package; add_station would):
+`add_object template=EmptyPackage name=Handling parent=Logical description='Handling: the pick-and-place station'`.
 ```
 add_device name=PickZ kind=valve program=PickDev parent=Logical/Handling task_class=<the area's> description='Gripper lift: front = down' parameters={"MoveTime": "T#1s"} interlocks=[{"permit": "PermitFront", "when": "gPickX.Status.AtFront OR gPickX.Status.AtBack", "text": "slide between its ends"}]
 add_device name=PickX kind=valve program=PickDev description='Slide: back = pick side, front = place side' parameters={"MoveTime": "T#2s"} interlocks=[{"permit": "PermitFront", "when": "gPickZ.Status.AtBack", "text": "gripper not up"}, {"permit": "PermitBack", "when": "gPickZ.Status.AtBack", "text": "gripper not up"}]
@@ -37,7 +40,7 @@ The interlocks refer to each other: add all three, then build. Sensors the real 
 1. **Automatic** (St1-St9): wait for a part and a free place position; lower; suck; lift; report the pick to the
    infeed and slide over; lower; release; lift and report the part placed; slide back. The infeed and the next
    station each get one handshake pair, and each signal has one producer (as_guide 'omc' section 5).
-2. **Homing** (Hm1-Hm3): lift first (nothing collides), then slide back to the pick side, then open the gripper.
+2. **Homing** (Hm1-Hm4): lift first (nothing collides), then slide back to the pick side, then open the gripper.
    A part still in the gripper drops at the pick position, and the infeed's homing runs it out as a reject - this is
    the default the checklist asks the user about (keep and place it, or wait for the operator, are the others).
 3. **Manual**: each device by hand from the station's manual page; the interlocks above hold here too, and the
@@ -67,7 +70,8 @@ no mode bit in that rung (the user's rule). Only STOP switches the suction off (
   "homing": [
     { "comment": "Lift the gripper" },
     { "comment": "Up - slide back to the pick side", "when": "gPickZ.Status.AtBack" },
-    { "comment": "At the pick side - open the gripper - homed", "when": "gPickX.Status.AtBack" } ],
+    { "comment": "At the pick side - open the gripper", "when": "gPickX.Status.AtBack" },
+    { "comment": "Gripper open - homed", "when": "NOT gPickVacuum.Status.Held" } ],
   "commands": [
     { "comment": "Gripper down: lowering, sucking, lowering at the place position, releasing", "when": "St2 OR St3 OR St6 OR St7", "out": ["gPickZ.Cmd.Front"] },
     { "comment": "Slide on the place side from the pick report until the gripper is up again", "when": "St5 OR St6 OR St7 OR St8", "out": ["gPickX.Cmd.Front"] },
@@ -88,7 +92,8 @@ no mode bit in that rung (the user's rule). Only STOP switches the suction off (
     { "step": "St8", "time": "T#2s", "alarm": "AlmGripperNotUp", "comment": "Gripper not up after the release" },
     { "step": "St9", "time": "T#3s", "alarm": "AlmSlideNotAtPick", "comment": "Slide not back at the pick position" },
     { "step": "Hm1", "time": "T#2s", "alarm": "AlmGripperNotUp", "comment": "Gripper not up while homing" },
-    { "step": "Hm2", "time": "T#3s", "alarm": "AlmSlideNotAtPick", "comment": "Slide not back while homing" } ],
+    { "step": "Hm2", "time": "T#3s", "alarm": "AlmSlideNotAtPick", "comment": "Slide not back while homing" },
+    { "step": "Hm3", "time": "T#1s", "alarm": "AlmNotReleased", "comment": "Gripper not open while homing" } ],
   "alarms": [
     { "when": "GripperLoaded AND NOT gPickVacuum.Status.Held", "delay": "T#200ms", "alarm": "AlmPartLost", "text": "Part lost from the gripper" },
     { "when": "gPickZ.Status.Error", "alarm": "AlmLiftError", "text": "Gripper lift: end position not reached" },
@@ -98,7 +103,10 @@ no mode bit in that rung (the user's rule). Only STOP switches the suction off (
 
 Notes:
 - The station's name is its task's name: at most 10 characters (add_station refuses `PickStation`).
-- No timeout on St1 (it waits for work) nor on Hm3 (the last homing step stays active).
+- No timeout on St1 (it waits for work) nor on Hm4 (the last homing step stays active).
+- **Never reset a held state with the last homing step:** it stays set after the homing, in Auto too. A first
+  version reset `GripperLoaded` with the last step, and on ARsim the suction dropped the part after every pick.
+  Opening the gripper is therefore a step of its own (Hm3), and Hm4 only reports "homed".
 - `PartAtPick` and `PartTaken` are station variables so the station builds and tests alone. In the machine, use
   the neighbours' reports in the `when`s instead (the conveyor station's "part ready", the next station's "taken"),
   or copy them in an ST action the first command rung calls.
@@ -129,13 +137,24 @@ The user decides whether ARsim runs. Without hardware: `Simulate` true in the va
 
 | # | Do | Expect |
 |---|---|---|
-| 1 | homing | Hm1-Hm3 in order, `gPickPlace.HomingDone`; gripper up, slide on the pick side, suction off |
-| 2 | Auto, `PickPlace:PartAtPick` TRUE | St2-St5, `PickDone` TRUE; `PartAtPick` FALSE -> `PickDone` FALSE |
-| 3 | let it run on | St6-St9, `PartPlaced` TRUE, back in St1; a new `PartAtPick` waits until `PartTaken` |
-| 4 | `PartTaken` TRUE, then FALSE | `PartPlaced` FALSE; the next cycle can start |
-| 5 | Manual during St5 (part held), then out of Manual | the suction stays on (`GripperLoaded`); after the reset request Hm3 opens the gripper |
-| 6 | Manual: slide while the gripper is down | refused, `RefusedText` "gripper not up" |
-| 7 | `diSafetyOk` FALSE with a part held | Stop, suction off, `AlmPartLost` after 200 ms |
-| 8 | vacuum without `Simulate` and nothing answering | St3 waits, `AlmNotSucked` after 1 s, Ack lamp on |
+| 1 | homing | Hm1-Hm4, `gPickPlace.HomingDone`; gripper up, slide on the pick side, suction off. The valves already go back in ReadyHoming (no step commands them), so Hm1-Hm2 pass at once |
+| 2 | Auto, `PickPlace:PartAtPick` TRUE | St2-St5, `GripperLoaded` and `Held` TRUE, `PickDone` TRUE; `PartAtPick` FALSE -> `PickDone` FALSE |
+| 3 | let it run on | St6-St9, the part held until St7, `PartPlaced` TRUE, back in St1 (measured: 5.6 s a cycle); a new `PartAtPick` waits until `PartTaken` |
+| 4 | `PartTaken` TRUE until `PartPlaced` is FALSE, then FALSE | `PartPlaced` FALSE; the next cycle can start |
+| 5 | Manual while St5 holds the part, then out of Manual | the suction stays on through Manual and the reset request (`GripperLoaded`); after Start, Hm3 opens the gripper and Hm4 reports homed, no `AlmPartLost` |
+| 6 | Manual: lower the gripper (`gPickZ.Hmi.Front`), then move the slide | the slide is refused, `RefusedText` "gripper not up" |
+| 7 | `diSafetyOk` FALSE with a part held | Stop at once, suction off, `AlmPartLost` after 200 ms; safety back -> ReadyAuto, Start -> the frozen cycle goes on |
+| 8 | vacuum without `Simulate` (`gPickVacuum.Par.Simulate` FALSE) | St3 waits with the suction on, `AlmNotSucked` after 1 s |
+
+All eight passed on ARsim (2026-11-11). How the test was driven:
+- **Stopping the cycle in St5 with the part held** (rows 5 and 7): St5 to the release takes under 2 s, too short to
+  switch modes by hand. Before the part: `gPickX.Par.Simulate` FALSE and `PickDev:diPickXBack` TRUE - the slide
+  keeps its back sensor, the place sensor never comes, and St5 waits (with `AlmSlideNotAtPlace` after 3 s and the
+  slide's device error). Put both back afterwards (`Simulate` TRUE, `diPickXBack` FALSE) and Ack.
+- **A held Ack hides alarms:** the alarms-off rung resets them in every scan while Ack is TRUE. Write Ack TRUE, then
+  FALSE, before looking for an alarm.
+- **A handshake pulse must last a cycle:** two write_variable calls in a row can land in one 100 ms cycle. Write
+  `PartTaken` TRUE with watch_variables `until PickPlace:PartPlaced = FALSE`, then FALSE.
+- Run dependent watch_variables one after the other, never in one message: they run in parallel.
 
 Report each row as seen.

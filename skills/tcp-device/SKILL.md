@@ -3,7 +3,7 @@ name: tcp-device
 description: "Sample skill: a reusable TCP link to a device that speaks text lines (barcode scanner, label printer, vision sensor, robot controller, test PC, MES gateway) - the IEC library TcpDev with the block TcpDeviceClient (connect and reconnect, request and answer, lines the device sends by itself, timeouts), how to bring it into a project, use it from a station, and test it on ARsim against a line server on the PC. Use when the PLC must talk to a device over the device's own TCP text protocol."
 metadata:
   group: modules
-  version: "0.1.0"
+  version: "0.2.0"
   min-asmcp: "1.44.0"
   requires-tools: "add_library, add_object, write_file, add_file, add_program, build, write_variable, watch_variables"
 ---
@@ -14,10 +14,9 @@ read, a printer takes a label job, a vision sensor or a robot controller answers
 ready block for that: one `TcpDeviceClient` instance per device keeps the connection, sends a request, collects the
 answer line and reports errors, so the program only says *what* to send.
 
-**Status of this sample (0.1.0):** built 2026-11-11 with ASMCP's tools exactly as in sections 1 and 3 (AS 6.7, a
-scratch project): the library and the ScannerCom example compile with 0 errors and 0 warnings. The ARsim test of
-section 4 is still open, so the behaviour is not measured yet. Tell the user it is a sample before using it on a
-machine.
+**Status of this sample (0.2.0):** built with ASMCP's tools exactly as in sections 1 and 3 (0 errors, 0 warnings) and
+run on ARsim (AR 6.8.1, ScannerCom in a 100 ms task class, 2026-11-11): all six rows of section 4 passed. Not yet
+used with a real device: tell the user it is a sample before using it on a machine.
 
 Not for: Modbus TCP (as_guide 'fieldbus'), OPC UA (as_guide 'opcua'), HTTP (library AsHttp), B&R PLC to B&R PLC
 variables. A binary protocol (length headers, no end character): adapt the line cutting (section 5).
@@ -73,6 +72,8 @@ How it behaves:
 - **A timeout keeps the connection** (`Error`, `StatusID` 50000); a lost connection fails the waiting request and
   reconnects after `RetryDelay`. A `Send` while not connected fails at once (50003).
 - A line longer than the 1024-byte buffer without its end character is dropped (50001).
+- `tcpERR_WOULDBLOCK` (32607, "would block, call again") is not a failure: the block calls again (not yet seen in a
+  test).
 
 ## 3. One program per device link
 
@@ -157,11 +158,14 @@ The user decides whether ARsim runs (and whose: check the running ARsim first). 
 | # | Do | Expect |
 |---|---|---|
 | 1 | start | `ScannerCom:Scanner.Connected` TRUE, `LineCount` 1 (`HELLO`) |
-| 2 | `gScanner.Cmd.Read` TRUE | `gScanner.Status.Done` TRUE, `Code` `ACK TRIGGER`; Read FALSE -> Done FALSE |
-| 3 | stop the server | `Connected` FALSE, `StatusID` 50002 (or an AsTCP code), a new attempt every 3 s |
-| 4 | start the server again | `Connected` TRUE within about 3 s |
+| 2 | `gScanner.Cmd.Read` TRUE | `gScanner.Status.Done` TRUE, `Code` `ACK TRIGGER` (measured: 0.45 s at 100 ms); Read FALSE -> Done FALSE |
+| 3 | stop the server | `Connected` FALSE, `StatusID` 50002 for an orderly close, 32609 `tcpERR_NOT_CONNECTED` when the server process is killed (measured); then every 3 s an attempt, each refused one ending after about 2 s with 32608 `tcpERR_INVALID` |
+| 4 | start the server again | `Connected` TRUE within about 3 s (measured 3.3 s) |
 | 5 | server with `--silent`, then Read | `Error` after 2 s, `StatusID` 50000, still connected |
 | 6 | server with `--tick 2` | `LineCount` rises, `Answer` `TICK n`, no Read needed |
+
+`StatusID` keeps the last failure's cause while all is well again (here 32609 from row 3 until row 5): judge the link
+by `Connected`, a request by `Done` / `Error`.
 
 4. Put the addresses back and report what you saw, row by row.
 

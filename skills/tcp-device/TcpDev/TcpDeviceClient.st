@@ -139,7 +139,7 @@ FUNCTION_BLOCK TcpDeviceClient
 				ReceiveData.enable := FALSE;
 				CloseSocket.enable := TRUE;
 				State := tdCLOSE;
-			ELSIF (ReceiveData.status <> tcpERR_NO_DATA) AND (ReceiveData.status <> ERR_FUB_BUSY) AND (ReceiveData.status <> ERR_FUB_ENABLE_FALSE) THEN
+			ELSIF (ReceiveData.status <> tcpERR_NO_DATA) AND (ReceiveData.status <> tcpERR_WOULDBLOCK) AND (ReceiveData.status <> ERR_FUB_BUSY) AND (ReceiveData.status <> ERR_FUB_ENABLE_FALSE) THEN
 				StatusID := ReceiveData.status;
 				ReceiveData.enable := FALSE;
 				CloseSocket.enable := TRUE;
@@ -171,8 +171,8 @@ FUNCTION_BLOCK TcpDeviceClient
 				WaitAnswer := TRUE;
 				ReceiveData.enable := TRUE;
 				State := tdCONNECTED;
-			ELSIF (SendRequest.status <> ERR_FUB_BUSY) AND (SendRequest.status <> ERR_FUB_ENABLE_FALSE) THEN
-				(* tcpERR_SENTLEN, tcpERR_NOT_CONNECTED ...: the connection is unusable *)
+			ELSIF (SendRequest.status <> ERR_FUB_BUSY) AND (SendRequest.status <> ERR_FUB_ENABLE_FALSE) AND (SendRequest.status <> tcpERR_WOULDBLOCK) THEN
+				(* tcpERR_SENTLEN, tcpERR_NOT_CONNECTED ...: the connection is unusable. tcpERR_WOULDBLOCK: enable stays TRUE, so the next call sends again *)
 				StatusID := SendRequest.status;
 				SendRequest.enable := FALSE;
 				CloseSocket.enable := TRUE;
